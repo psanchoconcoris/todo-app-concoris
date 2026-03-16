@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List - Concoris Group</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .login-container { display: flex; justify-content: center; align-items: center; min-height: 100vh; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .login-container.hidden { display: none; }
+        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); width: 100%; max-width: 400px; text-align: center; }
+        .login-box h1 { color: #8B1A2F; margin-bottom: 10px; font-size: 28px; }
+        .login-box p { color: #666; margin-bottom: 30px; font-size: 14px; }
+        .login-box input { width: 100%; padding: 12px; margin-bottom: 20px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .login-box button { width: 100%; padding: 12px; background: #8B1A2F; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; }
+        .app-container { max-width: 1000px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #8B1A2F 0%, #6b1524 100%); color: white; padding: 30px; text-align: center; position: relative; }
+        .header h1 { font-size: 32px; margin-bottom: 5px; }
+        .header p { font-size: 14px; opacity: 0.9; }
+        .logout-btn { position: absolute; top: 20px; right: 20px; padding: 8px 16px; background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; cursor: pointer; font-size: 12px; }
+        .tabs { display: flex; border-bottom: 2px solid #f0f0f0; background: #f9f9f9; overflow-x: auto; }
+        .tab-btn { flex: 1; padding: 15px; border: none; background: transparent; cursor: pointer; font-size: 16px; font-weight: 600; color: #666; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; position: relative; }
+        .tab-btn.active { color: #8B1A2F; border-bottom-color: #8B1A2F; background: white; }
+        .tab-badge { position: absolute; top: 5px; right: 5px; background: #e74c3c; color: white; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; }
+        .tab-content { display: none; padding: 30px; min-height: 500px; }
+        .tab-content.active { display: block; }
+        .controls { display: flex; gap: 10px; margin-bottom: 25px; flex-wrap: wrap; align-items: center; }
+        .search-box { flex: 1; min-width: 200px; padding: 10px 15px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .filter-btn { padding: 10px 16px; background: #f0f0f0; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 14px; white-space: nowrap; }
+        .filter-btn.active { background: #8B1A2F; color: white; border-color: #8B1A2F; }
+        .add-btn { padding: 10px 20px; background: #8B1A2F; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; white-space: nowrap; }
+        .stats { display: flex; gap: 20px; margin-bottom: 25px; flex-wrap: wrap; }
+        .stat-card { background: #f9f9f9; padding: 15px 20px; border-radius: 6px; border-left: 4px solid #8B1A2F; flex: 1; min-width: 150px; }
+        .stat-card .label { font-size: 12px; color: #666; text-transform: uppercase; margin-bottom: 5px; }
+        .stat-card .value { font-size: 24px; font-weight: bold; color: #8B1A2F; }
+        .task-list { display: flex; flex-direction: column; gap: 12px; }
+        .task-item { display: flex; gap: 12px; padding: 15px; background: #f9f9f9; border-radius: 6px; align-items: flex-start; cursor: pointer; border-left: 4px solid #ddd; }
+        .task-item:hover { background: #f0f0f0; transform: translateX(5px); }
+        .task-item.alta { border-left-color: #e74c3c; }
+        .task-item.media { border-left-color: #f39c12; }
+        .task-item.baja { border-left-color: #27ae60; }
+        .task-checkbox { width: 20px; height: 20px; margin-top: 2px; cursor: pointer; accent-color: #8B1A2F; }
+        .task-content { flex: 1; min-width: 0; }
+        .task-title { font-weight: 600; color: #333; margin-bottom: 5px; font-size: 16px; }
+        .task-meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: #666; }
+        .badge { background: #e8f4f8; color: #0066cc; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        .badge.auto { background: #f0e8f8; color: #6b3fb0; }
+        .badge.manual { background: #e8f8f0; color: #006b44; }
+        .badge.alta { background: #fee8e8; color: #cc0000; }
+        .badge.media { background: #fef5e8; color: #cc6600; }
+        .badge.baja { background: #e8f8e8; color: #006600; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 500; justify-content: center; align-items: center; padding: 20px; }
+        .modal.show { display: flex; }
+        .modal-content { background: white; border-radius: 12px; padding: 30px; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; }
+        .modal-header { margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .modal-header h2 { color: #333; font-size: 24px; }
+        .close-modal { background: none; border: none; font-size: 28px; cursor: pointer; color: #999; }
+        .modal-body { margin-bottom: 20px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #333; font-size: 14px; }
+        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; }
+        .form-group textarea { resize: vertical; min-height: 80px; }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+        .btn-primary { padding: 10px 20px; background: #8B1A2F; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-secondary { padding: 10px 20px; background: #f0f0f0; color: #333; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-danger { padding: 10px 20px; background: #e74c3c; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-warning { padding: 10px 20px; background: #f39c12; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .empty-state { text-align: center; padding: 40px; color: #999; }
+        .classify-btn { padding: 8px 12px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; margin-top: 10px; }
+        .undo-btn { padding: 8px 12px; background: #f39c12; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; margin-top: 10px; }
+        .completed-badge { background: #27ae60; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+        @media (max-width: 768px) { .header { padding: 20px; } .controls { flex-direction: column; } .search-box { min-width: 100%; } }
+    </style>
+</head>
+<body>
+    <!-- Login -->
+    <div class="login-container" id="loginContainer">
+        <div class="login-box">
+            <h1>📋 Concoris</h1>
+            <p>To-Do List - Sistema Acumulativo</p>
+            <input type="password" id="passwordInput" placeholder="Contraseña" />
+            <button onclick="login()">Acceder</button>
+            <p style="margin-top: 20px; font-size: 12px; color: #999;">Contraseña: Concoris2026</p>
+        </div>
+    </div>
+
+    <!-- App -->
+    <div class="app-container" style="display: none;" id="appContainer">
+        <div class="header">
+            <button class="logout-btn" onclick="logout()">Cerrar Sesión</button>
+            <h1>📋 Mis Tareas - Concoris Group</h1>
+            <p>Sistema Acumulativo de Tareas (Automáticas + Manuales)</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('personal')">📌 Mis Tareas<span class="tab-badge" id="personalBadge" style="display: none;">0</span></button>
+            <button class="tab-btn" onclick="switchTab('team')">👥 Equipo<span class="tab-badge" id="teamBadge" style="display: none;">0</span></button>
+            <button class="tab-btn" onclick="switchTab('unclassified')">⚠️ Clasificar<span class="tab-badge" id="unclassifiedBadge">0</span></button>
+            <button class="tab-btn" onclick="switchTab('completed')">✅ Completadas<span class="tab-badge" id="completedBadge">0</span></button>
+        </div>
+
+        <!-- Personal Tab -->
+        <div class="tab-content active" id="personalTab">
+            <div class="controls">
+                <input type="text" class="search-box" id="personalSearch" placeholder="🔍 Buscar tareas..." onkeyup="renderTasks()" />
+                <button class="filter-btn active" data-filter="all" onclick="toggleFilter(event, 'personal', 'urgency', 'all')">Todas</button>
+                <button class="filter-btn" data-filter="Alta" onclick="toggleFilter(event, 'personal', 'urgency', 'Alta')">⚡ Alta</button>
+                <button class="filter-btn" data-filter="Media" onclick="toggleFilter(event, 'personal', 'urgency', 'Media')">📊 Media</button>
+                <button class="filter-btn" data-filter="Baja" onclick="toggleFilter(event, 'personal', 'urgency', 'Baja')">✅ Baja</button>
+                <button class="add-btn" onclick="openAddModal('personal')">+ Añadir</button>
+            </div>
+            <div class="stats">
+                <div class="stat-card"><div class="label">Pendientes</div><div class="value" id="personalPending">0</div></div>
+                <div class="stat-card"><div class="label">Urgentes</div><div class="value" id="personalUrgent">0</div></div>
+            </div>
+            <div class="task-list" id="personalTaskList"></div>
+            <div class="empty-state" id="personalEmpty" style="display: none;">No hay tareas pendientes. ¡Excelente! 🎉</div>
+        </div>
+
+        <!-- Team Tab -->
+        <div class="tab-content" id="teamTab">
+            <div class="controls">
+                <input type="text" class="search-box" id="teamSearch" placeholder="🔍 Buscar tareas..." onkeyup="renderTasks()" />
+                <button class="filter-btn active" data-filter="all" onclick="toggleFilter(event, 'team', 'person', 'all')">Todas</button>
+                <button class="filter-btn" data-filter="Ana" onclick="toggleFilter(event, 'team', 'person', 'Ana')">Ana</button>
+                <button class="filter-btn" data-filter="Juan" onclick="toggleFilter(event, 'team', 'person', 'Juan')">Juan</button>
+                <button class="filter-btn" data-filter="María" onclick="toggleFilter(event, 'team', 'person', 'María')">María</button>
+                <button class="add-btn" onclick="openAddModal('team')">+ Añadir</button>
+            </div>
+            <div class="stats">
+                <div class="stat-card"><div class="label">Pendientes</div><div class="value" id="teamPending">0</div></div>
+                <div class="stat-card"><div class="label">Urgentes</div><div class="value" id="teamUrgent">0</div></div>
+            </div>
+            <div class="task-list" id="teamTaskList"></div>
+            <div class="empty-state" id="teamEmpty" style="display: none;">No hay tareas pendientes. ¡Excelente! 🎉</div>
+        </div>
+
+        <!-- Unclassified Tab -->
+        <div class="tab-content" id="unclassifiedTab">
+            <div class="controls">
+                <input type="text" class="search-box" id="unclassifiedSearch" placeholder="🔍 Buscar tareas..." onkeyup="renderTasks()" />
+                <button class="add-btn" onclick="openAddModal('unclassified')">+ Añadir</button>
+            </div>
+            <div class="stats">
+                <div class="stat-card"><div class="label">Pendientes de Clasificar</div><div class="value" id="unclassifiedTotal">0</div></div>
+            </div>
+            <div class="task-list" id="unclassifiedTaskList"></div>
+            <div class="empty-state" id="unclassifiedEmpty" style="display: none;">¡Sin tareas pendientes! ✅</div>
+        </div>
+
+        <!-- Completed Tab -->
+        <div class="tab-content" id="completedTab">
+            <div class="controls">
+                <input type="text" class="search-box" id="completedSearch" placeholder="🔍 Buscar completadas..." onkeyup="renderTasks()" />
+                <button class="filter-btn active" data-filter="all" onclick="toggleFilter(event, 'completed', 'person', 'all')">Todas</button>
+                <button class="filter-btn" data-filter="Pablo (TÚ)" onclick="toggleFilter(event, 'completed', 'person', 'Pablo (TÚ)')">Mis tareas</button>
+                <button class="filter-btn" data-filter="Ana" onclick="toggleFilter(event, 'completed', 'person', 'Ana')">Ana</button>
+                <button class="filter-btn" data-filter="Juan" onclick="toggleFilter(event, 'completed', 'person', 'Juan')">Juan</button>
+                <button class="filter-btn" data-filter="María" onclick="toggleFilter(event, 'completed', 'person', 'María')">María</button>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;">
+                <label style="font-weight: 600; color: #333;">Filtrar por:</label>
+                <select id="completedCompanyFilter" onchange="renderTasks()" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+                    <option value="">Todas las empresas</option>
+                    <option value="Corporal">Corporal</option>
+                    <option value="USP Urban Infrastructure">USP Urban Infrastructure</option>
+                    <option value="USP Urban Logistics">USP Urban Logistics</option>
+                    <option value="Adiari">Adiari</option>
+                    <option value="Kerner Hill">Kerner Hill</option>
+                    <option value="Taulies Capital">Taulies Capital</option>
+                </select>
+                <select id="completedUrgencyFilter" onchange="renderTasks()" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+                    <option value="">Todas urgencias</option>
+                    <option value="Alta">Urgencia Alta</option>
+                    <option value="Media">Urgencia Media</option>
+                    <option value="Baja">Urgencia Baja</option>
+                </select>
+                <select id="completedTypeFilter" onchange="renderTasks()" style="padding: 8px; border: 1px solid #ddd; border-radius: 6px;">
+                    <option value="">Todos tipos</option>
+                    <option value="Auto">Automáticas</option>
+                    <option value="Manual">Manuales</option>
+                </select>
+            </div>
+
+            <div class="stats">
+                <div class="stat-card"><div class="label">Tareas Completadas</div><div class="value" id="completedTotal">0</div></div>
+            </div>
+            <div class="task-list" id="completedTaskList"></div>
+            <div class="empty-state" id="completedEmpty" style="display: none;">No hay tareas completadas. ¡Empieza a trabajar! 🚀</div>
+        </div>
+    </div>
+
+    <!-- Add Modal -->
+    <div class="modal" id="addModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Crear Nueva Tarea</h2>
+                <button class="close-modal" onclick="closeModal('addModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group"><label for="taskTitle">Título *</label><input type="text" id="taskTitle" placeholder="Ej: Revisar reportes..." /></div>
+                <div class="form-group"><label for="taskDesc">Descripción</label><textarea id="taskDesc" placeholder="Detalles..."></textarea></div>
+                <div class="form-group"><label for="taskUrgency">Urgencia</label><select id="taskUrgency"><option value="Baja">Baja</option><option value="Media" selected>Media</option><option value="Alta">Alta</option></select></div>
+                <div class="form-group"><label for="taskCompany">Empresa</label><select id="taskCompany"><option value="">-- Selecciona --</option><option value="Corporal">Corporal</option><option value="USP Urban Infrastructure">USP Urban Infrastructure</option><option value="USP Urban Logistics">USP Urban Logistics</option><option value="Adiari">Adiari</option><option value="Kerner Hill">Kerner Hill</option><option value="Taulies Capital">Taulies Capital</option></select></div>
+                <div class="form-group" id="personGroup" style="display: none;"><label for="taskPerson">Asignar a</label><select id="taskPerson"><option value="">-- Selecciona --</option><option value="Pablo (TÚ)">Pablo (TÚ)</option><option value="Ana">Ana</option><option value="Juan">Juan</option><option value="María">María</option></select></div>
+                <div class="form-group"><label for="taskDate">Fecha Límite</label><input type="date" id="taskDate" /></div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeModal('addModal')">Cancelar</button>
+                <button class="btn-primary" onclick="saveTask()">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Classify Modal -->
+    <div class="modal" id="classifyModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Clasificar Tarea</h2>
+                <button class="close-modal" onclick="closeModal('classifyModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group"><label>Tarea</label><p id="classifyTaskTitle" style="font-weight: bold; color: #333;"></p></div>
+                <div class="form-group"><label for="classifyCompany">Empresa *</label><select id="classifyCompany"><option value="">-- Selecciona empresa --</option><option value="Corporal">Corporal</option><option value="USP Urban Infrastructure">USP Urban Infrastructure</option><option value="USP Urban Logistics">USP Urban Logistics</option><option value="Adiari">Adiari</option><option value="Kerner Hill">Kerner Hill</option><option value="Taulies Capital">Taulies Capital</option></select></div>
+                <div class="form-group"><label for="classifyPerson">Persona *</label><select id="classifyPerson"><option value="">-- Selecciona persona --</option><option value="Pablo (TÚ)">Pablo - Mis Tareas (TÚ)</option><option value="Ana">Ana - Equipo</option><option value="Juan">Juan - Equipo</option><option value="María">María - Equipo</option></select></div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeModal('classifyModal')">Cancelar</button>
+                <button class="btn-primary" onclick="classifyTask()">Clasificar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal" id="detailModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="detailTitle">Detalles</h2>
+                <button class="close-modal" onclick="closeModal('detailModal')">&times;</button>
+            </div>
+            <div class="modal-body" id="detailBody"></div>
+            <div class="modal-actions">
+                <button class="btn-danger" onclick="deleteTask(currentDetailTaskId)">Eliminar</button>
+                <button id="undoBtn" class="btn-warning" onclick="undoComplete(currentDetailTaskId)" style="display: none;">↩️ Deshacer</button>
+                <button class="btn-secondary" onclick="closeModal('detailModal')">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const PASSWORD = 'Concoris2026';
+        let currentTab = 'personal';
+        let currentDetailTaskId = null;
+        let currentClassifyTaskId = null;
+        let filterState = { personal: { urgency: 'all' }, team: { person: 'all' }, unclassified: {}, completed: { person: 'all' } };
+
+        const demoTasks = [
+            { id: 1, title: 'Revisar reportes financieros', desc: 'Análisis mensual de P&L', urgency: 'Alta', company: 'USP Urban Infrastructure', type: 'Auto', completed: false, date: '2026-03-20', person: null },
+            { id: 2, title: 'Preparar propuesta Sant Jordi', desc: 'Campaña de libro', urgency: 'Alta', company: 'Corporal', type: 'Auto', completed: false, date: '2026-03-18', person: null },
+            { id: 3, title: 'Contactar proveedores', desc: 'Logista, ACL, Benvil', urgency: 'Media', company: 'Corporal', type: 'Manual', completed: false, date: '2026-03-25', person: null },
+            { id: 4, title: 'Revisar documentos de Logista', desc: 'Validar contratos', urgency: 'Alta', company: 'USP Urban Logistics', type: 'Auto', completed: false, date: '2026-03-17', person: 'Ana' },
+            { id: 5, title: 'Seguimiento con ACL', desc: 'Confirmar entrega', urgency: 'Media', company: 'Corporal', type: 'Manual', completed: false, date: '2026-03-22', person: 'Juan' },
+            { id: 6, title: 'Preparar informe de devoluciones', desc: 'Sant Jordi returns', urgency: 'Media', company: 'Corporal', type: 'Auto', completed: false, date: '2026-04-01', person: 'María' },
+            { id: 7, title: 'Tarea sin clasificar 1', desc: 'Necesita empresa y persona', urgency: 'Alta', company: '', type: 'Manual', completed: false, date: '', person: null },
+            { id: 8, title: 'Tarea sin clasificar 2', desc: 'A clasificar', urgency: 'Media', company: '', type: 'Manual', completed: false, date: '', person: null },
+            { id: 9, title: 'Tarea completada 1', desc: 'Análisis terminado', urgency: 'Alta', company: 'Corporal', type: 'Manual', completed: true, date: '2026-03-10', person: null },
+            { id: 10, title: 'Tarea completada 2', desc: 'Proyecto finalizado', urgency: 'Media', company: 'USP Urban Infrastructure', type: 'Auto', completed: true, date: '2026-03-12', person: 'Ana' }
+        ];
+
+        function login() {
+            const pwd = document.getElementById('passwordInput').value;
+            if (pwd === PASSWORD) {
+                localStorage.setItem('authenticated', 'true');
+                document.getElementById('loginContainer').classList.add('hidden');
+                document.getElementById('appContainer').style.display = 'block';
+                loadTasks();
+                renderTasks();
+            } else {
+                alert('Contraseña incorrecta');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('authenticated');
+            document.getElementById('loginContainer').classList.remove('hidden');
+            document.getElementById('appContainer').style.display = 'none';
+            document.getElementById('passwordInput').value = '';
+        }
+
+        function loadTasks() {
+            const stored = localStorage.getItem('tasks');
+            window.tasks = stored ? JSON.parse(stored) : demoTasks;
+            if (!stored) saveTasks();
+        }
+
+        function saveTasks() {
+            localStorage.setItem('tasks', JSON.stringify(window.tasks));
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            const tabs = ['personal', 'team', 'unclassified', 'completed'];
+            const tabIdx = tabs.indexOf(tab);
+            document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', i === tabIdx));
+            document.querySelectorAll('.tab-content').forEach((c, i) => c.classList.toggle('active', i === tabIdx));
+            renderTasks();
+        }
+
+        function getPersonalTasks() { return window.tasks.filter(t => !t.completed && t.person === null && t.company !== ''); }
+        function getTeamTasks() { return window.tasks.filter(t => !t.completed && t.person && t.person !== 'Pablo (TÚ)'); }
+        function getUnclassifiedTasks() { return window.tasks.filter(t => !t.completed && (t.company === '' || !t.person)); }
+        function getCompletedTasks() { return window.tasks.filter(t => t.completed); }
+
+        function renderTasks() {
+            let tasks = currentTab === 'personal' ? getPersonalTasks() : (currentTab === 'team' ? getTeamTasks() : (currentTab === 'unclassified' ? getUnclassifiedTasks() : getCompletedTasks()));
+            const searchText = document.getElementById(currentTab === 'personal' ? 'personalSearch' : (currentTab === 'team' ? 'teamSearch' : (currentTab === 'unclassified' ? 'unclassifiedSearch' : 'completedSearch'))).value.toLowerCase();
+            const filter = filterState[currentTab];
+            
+            let filtered = tasks.filter(t => {
+                let match = t.title.toLowerCase().includes(searchText);
+                if (currentTab === 'personal' && filter.urgency !== 'all') match = match && t.urgency === filter.urgency;
+                if (currentTab === 'team' && filter.person !== 'all') match = match && t.person === filter.person;
+                if (currentTab === 'completed') {
+                    if (filter.person !== 'all') match = match && (t.person === filter.person || (filter.person === 'Pablo (TÚ)' && !t.person));
+                    const company = document.getElementById('completedCompanyFilter').value;
+                    const urgency = document.getElementById('completedUrgencyFilter').value;
+                    const type = document.getElementById('completedTypeFilter').value;
+                    if (company) match = match && t.company === company;
+                    if (urgency) match = match && t.urgency === urgency;
+                    if (type) match = match && t.type === type;
+                }
+                return match;
+            });
+
+            const listId = currentTab === 'personal' ? 'personalTaskList' : (currentTab === 'team' ? 'teamTaskList' : (currentTab === 'unclassified' ? 'unclassifiedTaskList' : 'completedTaskList'));
+            const emptyId = currentTab === 'personal' ? 'personalEmpty' : (currentTab === 'team' ? 'teamEmpty' : (currentTab === 'unclassified' ? 'unclassifiedEmpty' : 'completedEmpty'));
+            const list = document.getElementById(listId);
+            const empty = document.getElementById(emptyId);
+
+            if (filtered.length === 0) {
+                list.innerHTML = '';
+                empty.style.display = 'block';
+            } else {
+                empty.style.display = 'none';
+                if (currentTab === 'unclassified') {
+                    list.innerHTML = filtered.map(t => `
+                        <div class="task-item ${t.urgency.toLowerCase()}">
+                            <div class="task-content">
+                                <div class="task-title">${t.title}</div>
+                                <div class="task-meta">
+                                    <span class="badge ${t.urgency.toLowerCase()}">${t.urgency}</span>
+                                    ${t.company ? `<span class="badge">${t.company}</span>` : '<span class="badge" style="background:#fef5e8; color:#cc6600;">Sin empresa</span>'}
+                                    <span class="badge" style="background:#fee8e8; color:#cc0000;">Sin persona</span>
+                                </div>
+                                <button class="classify-btn" onclick="openClassifyModal(${t.id}, '${t.title.replace(/'/g, "\\'")}')" style="margin-top: 10px;">🏷️ Clasificar</button>
+                            </div>
+                        </div>
+                    `).join('');
+                } else if (currentTab === 'completed') {
+                    list.innerHTML = filtered.map(t => `
+                        <div class="task-item ${t.urgency.toLowerCase()}" onclick="showTaskDetail(${t.id})">
+                            <div class="task-content">
+                                <div class="task-title">✅ ${t.title}</div>
+                                <div class="task-meta">
+                                    <span class="completed-badge">COMPLETADA</span>
+                                    <span class="badge ${t.type.toLowerCase()}">${t.type}</span>
+                                    <span class="badge ${t.urgency.toLowerCase()}">${t.urgency}</span>
+                                    <span class="badge">${t.company}</span>
+                                    ${t.person && t.person !== 'Pablo (TÚ)' ? `<span class="badge">👤 ${t.person}</span>` : ''}
+                                    ${t.date ? `<span class="badge">📅 ${t.date}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    list.innerHTML = filtered.map(t => `
+                        <div class="task-item ${t.urgency.toLowerCase()}" onclick="showTaskDetail(${t.id})">
+                            <input type="checkbox" class="task-checkbox" onclick="event.stopPropagation(); toggleComplete(${t.id})" />
+                            <div class="task-content">
+                                <div class="task-title">${t.title}</div>
+                                <div class="task-meta">
+                                    <span class="badge ${t.type.toLowerCase()}">${t.type}</span>
+                                    <span class="badge ${t.urgency.toLowerCase()}">${t.urgency}</span>
+                                    <span class="badge">${t.company}</span>
+                                    ${t.person && t.person !== 'Pablo (TÚ)' ? `<span class="badge">👤 ${t.person}</span>` : ''}
+                                    ${t.date ? `<span class="badge">📅 ${t.date}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            }
+
+            updateStats();
+            updateBadges();
+        }
+
+        function updateStats() {
+            const personal = getPersonalTasks();
+            const team = getTeamTasks();
+            const unclassified = getUnclassifiedTasks();
+            const completed = getCompletedTasks();
+
+            document.getElementById('personalPending').textContent = personal.length;
+            document.getElementById('personalUrgent').textContent = personal.filter(t => t.urgency === 'Alta').length;
+            document.getElementById('teamPending').textContent = team.length;
+            document.getElementById('teamUrgent').textContent = team.filter(t => t.urgency === 'Alta').length;
+            document.getElementById('unclassifiedTotal').textContent = unclassified.length;
+            document.getElementById('completedTotal').textContent = completed.length;
+        }
+
+        function updateBadges() {
+            const unclassified = getUnclassifiedTasks().length;
+            const completed = getCompletedTasks().length;
+            const personal = getPersonalTasks().length;
+            const team = getTeamTasks().length;
+
+            document.getElementById('unclassifiedBadge').textContent = unclassified;
+            document.getElementById('unclassifiedBadge').style.display = unclassified > 0 ? 'flex' : 'none';
+            document.getElementById('completedBadge').textContent = completed;
+            document.getElementById('completedBadge').style.display = completed > 0 ? 'flex' : 'none';
+            document.getElementById('personalBadge').textContent = personal;
+            document.getElementById('personalBadge').style.display = personal > 0 ? 'flex' : 'none';
+            document.getElementById('teamBadge').textContent = team;
+            document.getElementById('teamBadge').style.display = team > 0 ? 'flex' : 'none';
+        }
+
+        function toggleComplete(id) {
+            const task = window.tasks.find(t => t.id === id);
+            if (task) {
+                task.completed = true;
+                saveTasks();
+                switchTab('completed');
+            }
+        }
+
+        function undoComplete(id) {
+            const task = window.tasks.find(t => t.id === id);
+            if (task) {
+                task.completed = false;
+                saveTasks();
+                closeModal('detailModal');
+                if (task.person === null && task.company !== '') {
+                    switchTab('personal');
+                } else if (task.person && task.person !== 'Pablo (TÚ)') {
+                    switchTab('team');
+                } else if (task.person === 'Pablo (TÚ)') {
+                    switchTab('personal');
+                }
+            }
+        }
+
+        function toggleFilter(e, tab, type, value) {
+            e.stopPropagation();
+            filterState[tab][type] = filterState[tab][type] === value ? 'all' : value;
+            e.target.parentElement.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.toggle('active', (btn.dataset.filter === 'all' && filterState[tab][type] === 'all') || (btn.dataset.filter === filterState[tab][type]));
+            });
+            renderTasks();
+        }
+
+        function openAddModal(tab) {
+            document.getElementById('modalTitle').textContent = 'Crear Nueva Tarea';
+            document.getElementById('taskTitle').value = '';
+            document.getElementById('taskDesc').value = '';
+            document.getElementById('taskUrgency').value = 'Media';
+            document.getElementById('taskCompany').value = tab === 'unclassified' ? '' : 'Corporal';
+            document.getElementById('taskDate').value = '';
+            document.getElementById('taskPerson').value = '';
+            document.getElementById('personGroup').style.display = tab === 'team' || tab === 'personal' ? 'block' : 'none';
+            document.getElementById('addModal').classList.add('show');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('show');
+        }
+
+        function saveTask() {
+            const title = document.getElementById('taskTitle').value.trim();
+            const desc = document.getElementById('taskDesc').value.trim();
+            const urgency = document.getElementById('taskUrgency').value;
+            const company = document.getElementById('taskCompany').value;
+            const date = document.getElementById('taskDate').value;
+            const person = currentTab === 'team' || currentTab === 'personal' ? (document.getElementById('taskPerson').value || null) : null;
+
+            if (!title) { alert('El título es obligatorio'); return; }
+
+            const newTask = {
+                id: Date.now(),
+                title, desc, urgency, company: company || '', date, person: person || null,
+                type: 'Manual',
+                completed: false
+            };
+            window.tasks.push(newTask);
+            saveTasks();
+            renderTasks();
+            closeModal('addModal');
+        }
+
+        function openClassifyModal(id, title) {
+            currentClassifyTaskId = id;
+            document.getElementById('classifyTaskTitle').textContent = title;
+            document.getElementById('classifyCompany').value = '';
+            document.getElementById('classifyPerson').value = '';
+            document.getElementById('classifyModal').classList.add('show');
+        }
+
+        function classifyTask() {
+            const company = document.getElementById('classifyCompany').value;
+            const person = document.getElementById('classifyPerson').value;
+
+            if (!company || !person) {
+                alert('Debes seleccionar empresa Y persona');
+                return;
+            }
+
+            const task = window.tasks.find(t => t.id === currentClassifyTaskId);
+            if (task) {
+                task.company = company;
+                task.person = person;
+                saveTasks();
+                renderTasks();
+                closeModal('classifyModal');
+            }
+        }
+
+        function showTaskDetail(id) {
+            currentDetailTaskId = id;
+            const task = window.tasks.find(t => t.id === id);
+            if (!task) return;
+
+            document.getElementById('detailTitle').textContent = task.title;
+            document.getElementById('detailBody').innerHTML = `
+                <div class="form-group"><label>Título</label><p>${task.title}</p></div>
+                <div class="form-group"><label>Descripción</label><p>${task.desc || 'Sin descripción'}</p></div>
+                <div class="form-group"><label>Urgencia</label><p>${task.urgency}</p></div>
+                <div class="form-group"><label>Empresa</label><p>${task.company || 'Sin clasificar'}</p></div>
+                ${task.person ? `<div class="form-group"><label>Asignado a</label><p>${task.person === 'Pablo (TÚ)' ? '👤 TÚ' : '👤 ' + task.person}</p></div>` : ''}
+                <div class="form-group"><label>Tipo</label><p>${task.type}</p></div>
+                <div class="form-group"><label>Estado</label><p>${task.completed ? '✅ Completada' : '⏳ Pendiente'}</p></div>
+                ${task.date ? `<div class="form-group"><label>Fecha Límite</label><p>📅 ${task.date}</p></div>` : ''}
+            `;
+            
+            const undoBtn = document.getElementById('undoBtn');
+            if (task.completed) {
+                undoBtn.style.display = 'block';
+            } else {
+                undoBtn.style.display = 'none';
+            }
+            
+            document.getElementById('detailModal').classList.add('show');
+        }
+
+        function deleteTask(id) {
+            if (confirm('¿Estás seguro?')) {
+                window.tasks = window.tasks.filter(t => t.id !== id);
+                saveTasks();
+                renderTasks();
+                closeModal('detailModal');
+            }
+        }
+
+        window.onload = () => {
+            if (localStorage.getItem('authenticated')) {
+                document.getElementById('loginContainer').classList.add('hidden');
+                document.getElementById('appContainer').style.display = 'block';
+                loadTasks();
+                renderTasks();
+            }
+        };
+    </script>
+</body>
+</html>
