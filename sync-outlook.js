@@ -34,7 +34,6 @@ const COMPANIES = [
   'KH'
 ];
 
-// FUNCIONES UTILITARIAS
 function httpRequest(options, data = null) {
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
@@ -54,7 +53,7 @@ function httpRequest(options, data = null) {
       });
     });
     req.on('error', reject);
-    if (data) req.write(JSON.stringify(data));
+    if (data) req.write(data);
     req.end();
   });
 }
@@ -63,6 +62,13 @@ async function getAccessToken() {
   const clientId = process.env.OUTLOOK_CLIENT_ID;
   const clientSecret = process.env.OUTLOOK_CLIENT_SECRET;
   const tenantId = process.env.OUTLOOK_TENANT_ID || 'common';
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    scope: 'https://graph.microsoft.com/.default',
+    grant_type: 'client_credentials'
+  });
 
   const options = {
     hostname: 'login.microsoftonline.com',
@@ -89,12 +95,7 @@ async function getAccessToken() {
       });
     });
     req.on('error', reject);
-    req.write(new URLSearchParams({
-      client_id: clientId,
-      client_secret: clientSecret,
-      scope: 'https://graph.microsoft.com/.default',
-      grant_type: 'client_credentials'
-    }).toString());
+    req.write(params.toString());
     req.end();
   });
 }
@@ -107,7 +108,7 @@ async function getEmailsFromOutlook(accessToken) {
 
   const options = {
     hostname: 'graph.microsoft.com',
-    path: `/v1.0/me/mailFolders/inbox/messages?$filter=receivedDateTime ge ${startDate}T00:00:00Z&$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,internetMessageId&$top=50`,
+    path: `/v1.0/me/mailFolders/inbox/messages?$filter=receivedDateTime%20ge%20${startDate}T00:00:00Z&$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,internetMessageId&$top=50`,
     method: 'GET',
     headers: { 'Authorization': `Bearer ${accessToken}` }
   };
