@@ -1,0 +1,22 @@
+{
+  "name": "todo-app-concoris-sync",
+  "version": "1.0.0",
+  "description": "Sincronización automática de emails de Outlook con aplicación de tareas",
+  "main": "sync-outlook.js",
+  "scripts": {
+    "sync": "node sync-outlook.js",
+    "test": "node sync-outlook.js"
+  },
+  "keywords": [
+    "outlook",
+    "sync",
+    "tasks",
+    "automation"
+  ],
+  "author": "Pablo Sancho",
+  "license": "MIT",
+  "dependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
