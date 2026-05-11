@@ -1,16 +1,19 @@
 #!/usr/bin/env node
 /**
- * SYNC-OUTLOOK.JS
+ * SYNC-OUTLOOK.JS - Versión IMAP
  * Script que sincroniza emails de Outlook con la aplicación de tareas
+ * Usa IMAP en lugar de Microsoft Graph
  */
 
-const https = require('https');
+const Imap = require('imap');
+const { simpleParser } = require('mailparser');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
 // CONFIGURACIÓN
 const OUTLOOK_EMAIL = 'psancho@concoris.es';
+const OUTLOOK_PASSWORD = process.env.OUTLOOK_PASSWORD;
 
 const TEAM_MAPPING = {
   'admanistracion@concoris.es': 'Jordi',
@@ -33,88 +36,6 @@ const COMPANIES = [
   'GEL',
   'KH'
 ];
-
-function httpRequest(options, data = null) {
-  return new Promise((resolve, reject) => {
-    const req = https.request(options, (res) => {
-      let body = '';
-      res.on('data', chunk => body += chunk);
-      res.on('end', () => {
-        try {
-          const parsed = body ? JSON.parse(body) : {};
-          if (res.statusCode >= 400) {
-            reject(new Error(`HTTP ${res.statusCode}: ${body}`));
-          } else {
-            resolve(parsed);
-          }
-        } catch (e) {
-          reject(e);
-        }
-      });
-    });
-    req.on('error', reject);
-    if (data) req.write(data);
-    req.end();
-  });
-}
-
-async function getAccessToken() {
-  const clientId = process.env.OUTLOOK_CLIENT_ID;
-  const clientSecret = process.env.OUTLOOK_CLIENT_SECRET;
-  const tenantId = process.env.OUTLOOK_TENANT_ID || 'common';
-
-  const params = new URLSearchParams({
-    client_id: clientId,
-    client_secret: clientSecret,
-    scope: 'https://graph.microsoft.com/.default',
-    grant_type: 'client_credentials'
-  });
-
-  const options = {
-    hostname: 'login.microsoftonline.com',
-    path: `/${tenantId}/oauth2/v2.0/token`,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-  };
-
-  return new Promise((resolve, reject) => {
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(data);
-          if (res.statusCode >= 400) {
-            reject(new Error(`Auth failed: ${data}`));
-          } else {
-            resolve(parsed.access_token);
-          }
-        } catch (e) {
-          reject(e);
-        }
-      });
-    });
-    req.on('error', reject);
-    req.write(params.toString());
-    req.end();
-  });
-}
-
-async function getEmailsFromOutlook(accessToken) {
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const startDate = yesterday.toISOString().split('T')[0];
-
-  const options = {
-    hostname: 'graph.microsoft.com',
-    path: `/v1.0/me/mailFolders/inbox/messages?$filter=receivedDateTime%20ge%20${startDate}T00:00:00Z&$select=id,subject,from,toRecipients,receivedDateTime,bodyPreview,internetMessageId&$top=50`,
-    method: 'GET',
-    headers: { 'Authorization': `Bearer ${accessToken}` }
-  };
-
-  return httpRequest(options);
-}
 
 function parseSubject(subject) {
   const companies = [];
@@ -147,8 +68,8 @@ function identifyPerson(email) {
   return TEAM_MAPPING[email.toLowerCase()] || null;
 }
 
-function generateTaskHash(email) {
-  return crypto.createHash('md5').update(email.internetMessageId || email.id).digest('hex');
+function generateTaskHash(messageId) {
+  return crypto.createHash('md5').update(messageId).digest('hex');
 }
 
 function loadProcessedEmails() {
@@ -184,104 +105,194 @@ function createTask(email, subject, person, companies) {
   return {
     id: Date.now() + Math.random(),
     title: parsed.taskTitle,
-    desc: `Email de ${email.from.emailAddress.address}`,
+    desc: `Email de ${email.from || 'desconocido'}`,
     urgency: 'Media',
     company: company,
     type: 'Auto',
     completed: false,
     date: new Date().toISOString().split('T')[0],
     person: person,
-    emailHash: generateTaskHash(email),
-    emailId: email.id,
-    receivedDateTime: email.receivedDateTime
+    emailHash: email.hash,
+    emailId: email.messageId,
+    receivedDateTime: email.date
   };
 }
 
 async function syncEmails() {
-  try {
-    console.log('🚀 Iniciando sincronización de Outlook...');
-
-    const token = await getAccessToken();
-    console.log('✅ Token obtenido');
-
-    const response = await getEmailsFromOutlook(token);
-    const emails = response.value || [];
-    console.log(`✉️  Encontrados ${emails.length} emails`);
+  return new Promise((resolve, reject) => {
+    const imap = new Imap({
+      user: OUTLOOK_EMAIL,
+      password: OUTLOOK_PASSWORD,
+      host: 'outlook.office365.com',
+      port: 993,
+      tls: true
+    });
 
     const processedEmails = loadProcessedEmails();
     const tasks = loadTasks();
     let newTasksCount = 0;
 
-    for (const email of emails) {
-      const hash = generateTaskHash(email);
-
-      if (processedEmails[hash]) {
-        console.log(`⏭️  Saltando (ya procesado): ${email.subject}`);
-        continue;
-      }
-
-      const fromEmail = email.from.emailAddress.address.toLowerCase();
-      const toRecipients = email.toRecipients.map(r => r.emailAddress.address.toLowerCase());
-      let assignedPerson = null;
-      let isPersonalTask = false;
-
-      if (toRecipients.includes(OUTLOOK_EMAIL.toLowerCase())) {
-        isPersonalTask = true;
-        assignedPerson = null;
-      } else {
-        for (const recipient of toRecipients) {
-          const person = identifyPerson(recipient);
-          if (person) {
-            assignedPerson = person;
-            break;
-          }
-        }
-      }
-
-      const parsed = parseSubject(email.subject);
-
-      const newTask = createTask(
-        email,
-        email.subject,
-        assignedPerson,
-        parsed.companies
-      );
-
-      if (!newTask.company) {
-        newTask.company = '';
-      }
-      if (!newTask.person && !isPersonalTask) {
-        newTask.person = null;
-      }
-
-      tasks.push(newTask);
-      processedEmails[hash] = {
-        subject: email.subject,
-        processedAt: new Date().toISOString(),
-        emailId: email.id
-      };
-
-      newTasksCount++;
-      console.log(`✅ Nueva tarea: "${newTask.title}" → ${newTask.person || 'Mis Tareas'}`);
+    function openInbox(cb) {
+      imap.openBox('INBOX', false, cb);
     }
 
-    saveTasks(tasks);
-    saveProcessedEmails(processedEmails);
+    imap.openBox('INBOX', false, function(err, box) {
+      if (err) {
+        reject(err);
+        return;
+      }
 
-    console.log(`\n✨ Sincronización completada`);
-    console.log(`📊 Nuevas tareas: ${newTasksCount}`);
-    console.log(`💾 Total tareas en sistema: ${tasks.length}`);
+      // Buscar emails del último día
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
-    return { success: true, newTasks: newTasksCount, totalTasks: tasks.length };
+      imap.search(['SINCE', oneDayAgo], function(err, results) {
+        if (err) {
+          reject(err);
+          return;
+        }
 
-  } catch (error) {
-    console.error('❌ Error en sincronización:', error.message);
-    process.exit(1);
-  }
+        if (results.length === 0) {
+          console.log('✉️  No hay emails nuevos');
+          imap.end();
+          resolve({ success: true, newTasks: 0, totalTasks: tasks.length });
+          return;
+        }
+
+        console.log(`✉️  Encontrados ${results.length} emails`);
+
+        const f = imap.fetch(results, { bodies: '' });
+        let processedCount = 0;
+
+        f.on('message', function(msg, seqno) {
+          let emailData = {
+            messageId: null,
+            subject: '',
+            from: '',
+            to: [],
+            date: new Date()
+          };
+
+          msg.on('attributes', function(attrs) {
+            emailData.messageId = attrs.uid.toString();
+          });
+
+          msg.on('structure', function(structure) {
+            // Parse headers
+            const headers = {};
+            for (let part of structure) {
+              if (part.params) {
+                headers[part.type] = part;
+              }
+            }
+          });
+
+          simpleParser(msg, async (err, parsed) => {
+            if (err) {
+              console.error('Error parsing email:', err);
+              return;
+            }
+
+            emailData.subject = parsed.subject || '';
+            emailData.from = parsed.from.text || '';
+            emailData.to = parsed.to ? parsed.to.text.split(',').map(e => e.trim()) : [];
+            emailData.date = parsed.date || new Date();
+            emailData.hash = generateTaskHash(emailData.messageId);
+
+            // Verificar si ya fue procesado
+            if (processedEmails[emailData.hash]) {
+              console.log(`⏭️  Saltando (ya procesado): ${emailData.subject}`);
+              processedCount++;
+              if (processedCount === results.length) {
+                imap.end();
+              }
+              return;
+            }
+
+            // Identificar persona
+            let assignedPerson = null;
+            for (const recipient of emailData.to) {
+              const person = identifyPerson(recipient);
+              if (person) {
+                assignedPerson = person;
+                break;
+              }
+            }
+
+            const parsed_subject = parseSubject(emailData.subject);
+
+            // Crear tarea
+            const newTask = createTask(
+              emailData,
+              emailData.subject,
+              assignedPerson,
+              parsed_subject.companies
+            );
+
+            tasks.push(newTask);
+            processedEmails[emailData.hash] = {
+              subject: emailData.subject,
+              processedAt: new Date().toISOString(),
+              emailId: emailData.messageId
+            };
+
+            newTasksCount++;
+            console.log(`✅ Nueva tarea: "${newTask.title}" → ${newTask.person || 'Mis Tareas'}`);
+
+            processedCount++;
+            if (processedCount === results.length) {
+              imap.end();
+            }
+          });
+        });
+
+        f.on('error', reject);
+        f.on('end', function() {
+          setTimeout(() => {
+            saveTasks(tasks);
+            saveProcessedEmails(processedEmails);
+
+            console.log(`\n✨ Sincronización completada`);
+            console.log(`📊 Nuevas tareas: ${newTasksCount}`);
+            console.log(`💾 Total tareas en sistema: ${tasks.length}`);
+
+            resolve({ success: true, newTasks: newTasksCount, totalTasks: tasks.length });
+          }, 1000);
+        });
+      });
+    });
+
+    imap.on('error', reject);
+    imap.on('end', function() {
+      console.log('Conexión IMAP cerrada');
+    });
+
+    imap.openBox('INBOX', false, function(err, box) {
+      if (err) reject(err);
+    });
+
+    imap.openBox('INBOX', false, function(err) {
+      if (err) {
+        reject(err);
+      } else {
+        imap.search(['UNSEEN'], function(err, results) {
+          if (err) reject(err);
+        });
+      }
+    });
+  });
 }
 
 if (require.main === module) {
-  syncEmails();
+  syncEmails()
+    .then(result => {
+      console.log('Success:', result);
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('❌ Error:', err.message);
+      process.exit(1);
+    });
 }
 
-module.exports = { syncEmails, parseSubject, identifyPerson };
+module.exports = { syncEmails };
